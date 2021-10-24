@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity 0.7.5;
 
-import "./libraries/SafeMath.sol";
-import "./libraries/EnumerableSet.sol";
+import "../libraries/SafeMath.sol";
+import "../libraries/EnumerableSet.sol";
 
-import "./interfaces/IERC20.sol";
-import "./interfaces/IERC2612Permit.sol";
+import "../interfaces/IERC20.sol";
+import "../interfaces/IERC2612Permit.sol";
 
-import "./types/ERC20Permit.sol";
-import "./types/Ownable.sol";
-import "./types/VaultOwned.sol";
+import "../types/ERC20Permit.sol";
+import "../types/Ownable.sol";
+import "../types/VaultOwned.sol";
 
 
 contract OlympusERC20Token is ERC20Permit, VaultOwned {
