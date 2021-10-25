@@ -263,9 +263,9 @@ contract YieldDirector is Ownable, IYieldDirector {
         return existingIndex;
     }
 
-    // TODO These can be replaced with wsOHM contract functions
+    // TODO These can be replaced with gOHM contract functions
     /**
-        @notice Convert flat sOHM value to agnostic value at current index
+        @notice Convert sOHM value to agnostic value at current index
         @dev Agnostic value earns rebases. Agnostic value is amount / rebase_index
      */
     function _toAgnostic(uint _amount) internal view returns ( uint ) {
@@ -275,7 +275,7 @@ contract YieldDirector is Ownable, IYieldDirector {
     }
 
     /**
-        @notice Convert agnostic value at current index to flat sOHM value
+        @notice Convert agnostic value at current index to sOHM value
         @dev Agnostic value earns rebases. Agnostic value is amount / rebase_index
      */
     function _fromAgnostic(uint _amount) internal view returns ( uint ) {
@@ -285,7 +285,7 @@ contract YieldDirector is Ownable, IYieldDirector {
     }
 
     /**
-        @notice Convert flat sOHM value to agnostic value at a given index value
+        @notice Convert sOHM value to agnostic value at a given index
         @dev Agnostic value earns rebases. Agnostic value is amount / rebase_index
      */
     function _fromAgnosticAtIndex(uint _amount, uint _index) internal view returns ( uint ) {
