@@ -1,16 +1,16 @@
  // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity 0.7.5;
 
-import "./libraries/SafeMath.sol";
-import "./libraries/SafeERC20.sol";
+import "../libraries/SafeMath.sol";
+import "../libraries/SafeERC20.sol";
 
-import "./interfaces/IOwnable.sol";
-import "./interfaces/IERC20.sol";
-import "./interfaces/IERC20Metadata.sol";
-import "./interfaces/IOHMERC20.sol";
-import "./interfaces/IBondingCalculator.sol";
+import "../interfaces/IOwnable.sol";
+import "../interfaces/IERC20.sol";
+import "../interfaces/IERC20Metadata.sol";
+import "../interfaces/IOHMERC20.sol";
+import "../interfaces/IBondingCalculator.sol";
 
-import "./types/Ownable.sol";
+import "../types/Ownable.sol";
 
 contract OlympusTreasury is Ownable {
 

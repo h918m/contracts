@@ -2,14 +2,14 @@
 pragma solidity 0.7.5;
 
 
-import "./libraries/SafeERC20.sol";
-import "./libraries/SafeMath.sol";
+import "../libraries/SafeERC20.sol";
+import "../libraries/SafeMath.sol";
 
-import "./interfaces/IERC20.sol";
-import "./interfaces/ITreasury.sol";
+import "../interfaces/IERC20.sol";
+import "../interfaces/ITreasury.sol";
 
-import "./types/Governable.sol";
-import "./types/Guardable.sol";
+import "../types/Governable.sol";
+import "../types/Guardable.sol";
 
 contract Distributor is Governable, Guardable {
 

@@ -2,16 +2,16 @@
 pragma solidity 0.7.5;
 
 
-import "./libraries/SafeMath.sol";
-import "./libraries/FixedPoint.sol";
-import "./libraries/Address.sol";
-import "./libraries/SafeERC20.sol";
+import "../libraries/SafeMath.sol";
+import "../libraries/FixedPoint.sol";
+import "../libraries/Address.sol";
+import "../libraries/SafeERC20.sol";
 
-import "./interfaces/IERC20Metadata.sol";
-import "./interfaces/IERC20.sol";
-import "./interfaces/IBondingCalculator.sol";
-import "./interfaces/IUniswapV2ERC20.sol";
-import "./interfaces/IUniswapV2Pair.sol";
+import "../interfaces/IERC20Metadata.sol";
+import "../interfaces/IERC20.sol";
+import "../interfaces/IBondingCalculator.sol";
+import "../interfaces/IUniswapV2ERC20.sol";
+import "../interfaces/IUniswapV2Pair.sol";
 
 
 contract OlympusBondingCalculator is IBondingCalculator {

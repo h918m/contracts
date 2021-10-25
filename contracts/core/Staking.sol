@@ -2,15 +2,15 @@
 pragma solidity 0.7.5;
 
 
-import "./libraries/SafeMath.sol";
-import "./libraries/SafeERC20.sol";
+import "../libraries/SafeMath.sol";
+import "../libraries/SafeERC20.sol";
 
-import "./interfaces/IERC20.sol";
-import "./interfaces/IsOHM.sol";
-import "./interfaces/IgOHM.sol";
-import "./interfaces/IDistributor.sol";
+import "../interfaces/IERC20.sol";
+import "../interfaces/IsOHM.sol";
+import "../interfaces/IgOHM.sol";
+import "../interfaces/IDistributor.sol";
 
-import "./types/Governable.sol";
+import "../types/Governable.sol";
 
 contract OlympusStaking is Governable {
 
