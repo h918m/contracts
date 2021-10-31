@@ -1,6 +1,23 @@
-node_modules/
-artifacts/
 cache/
+artifacts/
 
-.vscode
-.DS_Store
+coverage*
+types/
+
+.vscode/*
+!.vscode/settings.json.default
+!.vscode/launch.json.default
+!.vscode/extensions.json.default
+
+node_modules/
+.env
+yarn-error.log
+
+.yalc
+yalc.lock
+
+contractsInfo.json
+deployments/hardhat
+deployments/localhost
+
+/.dapp
