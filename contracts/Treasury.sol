@@ -1,8 +1,8 @@
  // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity 0.7.5;
 
-import "../libraries/SafeMath.sol";
-import "../libraries/SafeERC20.sol";
+import "./libraries/SafeMath.sol";
+import "./libraries/SafeERC20.sol";
 
 import "./interfaces/IOwnable.sol";
 import "./interfaces/IERC20.sol";
@@ -11,7 +11,7 @@ import "./interfaces/IOHMERC20.sol";
 import "./interfaces/IBondingCalculator.sol";
 import "./interfaces/ITreasury.sol";
 
-import "../types/Ownable.sol";
+import "./types/Ownable.sol";
 
 contract OlympusTreasury is Ownable, ITreasury {
 
@@ -390,11 +390,7 @@ contract OlympusTreasury is Ownable, ITreasury {
         @param _amount uint
         @return value_ uint
      */
-<<<<<<< HEAD:contracts/core/Treasury.sol
-    function tokenValue( address _token, uint _amount ) public view returns ( uint value_ ) {
-=======
     function tokenValue( address _token, uint _amount ) public override view returns ( uint value_ ) {
->>>>>>> tyche-impl:contracts/Treasury.sol
         value_ = _amount.mul( 10 ** IERC20Metadata( address(OHM) ).decimals() )
                     .div( 10 ** IERC20Metadata( _token ).decimals() );
         
