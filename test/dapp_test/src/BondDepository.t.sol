@@ -19,6 +19,7 @@ import "../../../contracts/BondDepository.sol";
 import "./util/Hevm.sol";
 import "../../../contracts/BondTeller.sol";
 import "../../../contracts/governance/gOHM.sol";
+import "./util/Hevm.sol";
 import "./util/MockContract.sol";
 
 
@@ -219,13 +220,13 @@ contract BondDepositoryTest is DSTest {
         treasury.enable(OlympusTreasury.STATUS.RESERVETOKEN, address(abcToken), address(bondingCalculator));
         treasury.enable(OlympusTreasury.STATUS.RESERVEDEPOSITOR, address(this), address(bondingCalculator));
 
-        abcToken.givenMethodReturnBool(abi.encodeWithSelector(IERC20.transferFrom.selector), true);
+        abcToken.givenMethodReturnBool(abi.encodeWithSelector(ERC20.transferFrom.selector), true);
 
         treasury.deposit(treasuryDeposit, address(abcToken), profit);
 
         MockContract pair = new MockContract();
         //TODO this one is wild:  error StateChangeWhileStatic unless we comment out MockContract's call to abi.encodeWithSignature("updateInvocationCount(bytes4,bytes)"
-        pair.givenMethodReturnBool(abi.encodeWithSelector(IERC20.transfer.selector), true);
+        pair.givenMethodReturnBool(abi.encodeWithSelector(ERC20.transfer.selector), true);
 
         pair.givenMethodReturn(abi.encodeWithSelector(ERC20.name.selector), abi.encode("MockUniswapPair"));
         pair.givenMethodReturn(abi.encodeWithSelector(ERC20.symbol.selector), abi.encode("MOCK"));
