@@ -329,7 +329,7 @@ contract OlympusBondDepository is Governable, Guardable {
     function calcPayoutFor(uint256 _value, uint256 _BID) public returns (uint256) {
         emit log_named_uint("calPayoutFor, _value", _value);
         emit log_named_uint("calPayoutFor, bondPrice(_BID)", bondPrice(_BID));
-//        emit log_named_uint("A",  FixedPoint.fraction(_value, bondPrice(_BID)));
+        emit log_named_uint("A",  FixedPoint.fraction(_value, bondPrice(_BID))._x);
         emit log_named_uint("B",  FixedPoint.fraction(_value, bondPrice(_BID)).decode112with18());
         emit log_named_uint("C",  FixedPoint.fraction(_value, bondPrice(_BID)).decode112with18().div(1e16));
         return FixedPoint.fraction(_value, bondPrice(_BID)).decode112with18().div(1e16);
