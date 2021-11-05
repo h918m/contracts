@@ -202,7 +202,9 @@ contract OlympusBondDepository is Governable, Guardable {
       emit log_named_uint("debtRatio(_BID)", debtRatio(_BID));
       emit log_named_uint("price_", (bonds[ _BID ].terms.controlVariable * debtRatio(_BID) + 1000000000) / 1e7);
 
+      calcPayoutFor(value, _BID);
   uint256 payout = payoutFor(value, _BID); // payout to bonder is computed
+      emit log_named_uint("payout", payout);
 
     // ensure there is remaining capacity for bond
     if (info.capacityIsPayout) {
@@ -324,8 +326,24 @@ contract OlympusBondDepository is Governable, Guardable {
     return FixedPoint.fraction(_value, bondPrice(_BID)).decode112with18().div(1e16);
   }
 
-  /**
-   * @notice payout due for amount of token
+    function calcPayoutFor(uint256 _value, uint256 _BID) public returns (uint256) {
+        emit log_named_uint("calPayoutFor, _value", _value);
+        emit log_named_uint("calPayoutFor, calcBondPrice(_BID)", calcBondPrice(_BID));
+        return FixedPoint.fraction(_value, bondPrice(_BID)).decode112with18().div(1e16);
+    }
+
+    function calcBondPrice(uint256 _BID) public returns (uint256 price_) {
+        price_ = bonds[_BID].terms.controlVariable.mul(debtRatio(_BID)).add(1000000000).div(1e7);
+        if (price_ < bonds[_BID].terms.minimumPrice) {
+            price_ = bonds[_BID].terms.minimumPrice;
+        }
+        emit log_named_uint("calcBondPrice, debtRatio(_BID)", debtRatio(_BID));
+        emit log_named_uint("calcBondPrice, price_", price_);
+    }
+
+
+    /**
+     * @notice payout due for amount of token
    * @param _amount uint
    * @param _BID uint
    */
