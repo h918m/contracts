@@ -252,7 +252,7 @@ contract OlympusBondDepository {
     if (_inPrincipal) {
       capacity = _capacity * _oracle.assetPrice() / 1e8;
     }
-    uint256 programLength = _conclusion - block.number;
+    uint256 programLength = _conclusion - block.timestamp;
     target_ = capacity * global.decayRate / programLength;
     uint256 discountedPrice = _oracle.assetPrice() * 99 / 100; // assume average discount of 1%
     bcv_ = (discountedPrice * OHM.totalSupply() / 1e8) * 1e9 / target_;
