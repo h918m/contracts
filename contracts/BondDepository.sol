@@ -91,7 +91,7 @@ contract OlympusBondDepository {
     * @param _conclusion uint256
     * @param _fixedTerm bool
     * @param _vesting uint256
-    * @return uint256
+    * @return id_ uint256
     */
   function addBond(
     IERC20 _principal,
@@ -101,7 +101,7 @@ contract OlympusBondDepository {
     uint256 _conclusion,
     bool _fixedTerm,
     uint256 _vesting
-  ) external onlyController returns (uint256) {
+  ) external onlyController returns (uint256 id_) {
     (uint targetDebt, uint256 bcv) = _compute(_capacity, _inPrincipal, _conclusion, _oracle);
     
     _checkLengths(_conclusion, _vesting, _fixedTerm);
@@ -114,7 +114,19 @@ contract OlympusBondDepository {
       maxDebt: targetDebt * 3 // exists to hedge tail risk. wide buffer important so as not to impede functionality.
     });
     
-    return _createBond(_principal, _oracle, terms, targetDebt, _capacity, _inPrincipal);
+    Bond memory bond = Bond({
+      principal: _principal, 
+      oracle: _oracle, 
+      terms: terms, 
+      totalDebt: targetDebt, 
+      last: block.timestamp, 
+      capacity: _capacity, 
+      capacityInPrincipal: _inPrincipal
+    });
+    
+    id_ = IDs.length;
+    bonds[id_] = bond;
+    IDs.push(address(_principal));
   }
 
   /**
@@ -256,32 +268,6 @@ contract OlympusBondDepository {
     } else {
       require(_vesting >= 5e6, "Bond must last more than 6 days");
     }
-  }
-  
-  /**
-   * @notice add bond to storage
-   */
-  function _createBond(
-      IERC20 _principal,
-      IOracle _oracle,
-      Terms memory _terms,
-      uint256 _target,
-      uint256 _capacity,
-      bool _inPrincipal
-  ) internal returns (uint256 id_) {
-    Bond memory bond = Bond({
-      principal: _principal, 
-      oracle: _oracle, 
-      terms: _terms, 
-      totalDebt: _target, 
-      last: block.timestamp, 
-      capacity: _capacity, 
-      capacityInPrincipal: _inPrincipal
-    });
-    
-    id_ = IDs.length;
-    bonds[id_] = bond;
-    IDs.push(address(_principal));
   }
 
   /* ======== VIEW FUNCTIONS ======== */
