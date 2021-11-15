@@ -34,9 +34,9 @@ contract BondTeller is ITeller, OlympusAccessControlled {
     struct Bond {
         uint256 bondId; // ID of bond in depository
         uint256 payout; // sOHM remaining to be paid. agnostic balance
-        uint256 vested; // Block when bond is vested
+        uint256 vested; // time when bond is vested
         uint256 created; // time bond was created
-        uint256 redeemed; // time bond was redeemed
+        uint256 redeemed; // time when bond was redeemed (0 if unredeemed)
     }
 
     /* ========== STATE VARIABLES ========== */
@@ -44,7 +44,7 @@ contract BondTeller is ITeller, OlympusAccessControlled {
     address internal immutable depository; // contract where users deposit bonds
     IStaking internal immutable staking; // contract to stake payout
     ITreasury internal immutable treasury;
-    IERC20 internal immutable OHM;
+    IERC20 internal immutable ohm;
     IsOHM internal immutable sOHM; // payment token
 
     mapping(address => Bond[]) public bonderInfo; // user data
@@ -70,7 +70,7 @@ contract BondTeller is ITeller, OlympusAccessControlled {
         require(_treasury != address(0), "Zero address: Treasury");
         treasury = ITreasury(_treasury);
         require(_ohm != address(0), "Zero address: OHM");
-        OHM = IERC20(_ohm);
+        ohm = IERC20(_ohm);
         require(_sOHM != address(0), "Zero address: sOHM");
         sOHM = IsOHM(_sOHM);
     }
@@ -151,7 +151,7 @@ contract BondTeller is ITeller, OlympusAccessControlled {
      * @notice pay reward to front end operator
      */
     function getReward() external override {
-        OHM.safeTransfer(msg.sender, rewards[msg.sender]);
+        ohm.safeTransfer(msg.sender, rewards[msg.sender]);
         rewards[msg.sender] = 0;
     }
 
@@ -199,7 +199,10 @@ contract BondTeller is ITeller, OlympusAccessControlled {
      * @param _indexes uint256[]
      * @return pending_ uint256
      */
-    function pendingForIndexes(address _bonder, uint256[] memory _indexes) public view override returns (uint256 pending_) {
+    function pendingForIndexes(
+        address _bonder, 
+        uint256[] memory _indexes
+    ) public view override returns (uint256 pending_) {
         for (uint256 i = 0; i < _indexes.length; i++) {
             if (vested(_bonder, _indexes[i])) {
                 pending_ += bonderInfo[_bonder][_indexes[i]].payout;

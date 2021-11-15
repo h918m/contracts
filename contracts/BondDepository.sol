@@ -54,7 +54,7 @@ contract OlympusBondDepository {
   /* ======== STATE VARIABLES ======== */
 
   mapping(uint256 => Bond) public bonds;
-  address[] public IDs; // bond IDs
+  address[] public ids; // bond IDs
 
   Global public global;
 
@@ -62,13 +62,13 @@ contract OlympusBondDepository {
   address public controller; // adds or deprecated bonds
 
   ITreasury internal immutable treasury;
-  IERC20 internal immutable OHM;
+  IERC20 internal immutable ohm;
 
     /* ======== CONSTRUCTOR ======== */
 
     constructor(address _ohm, address _treasury) {
       require(_ohm != address(0), "Zero address: OHM");
-      OHM = IERC20(_ohm);
+      ohm = IERC20(_ohm);
       require(_treasury != address(0), "Zero address: Treasury");
       treasury = ITreasury(_treasury);
     }
@@ -76,10 +76,16 @@ contract OlympusBondDepository {
     /* ======== POLICY FUNCTIONS ======== */
 
     /**
-     * On creating bonds: New bond is first created with a principal token, oracle, a budget,
-     * and a specification about whether that budget is in the principal token or in OHM. 
+     * On creating bonds: New bond is created with a principal token to purchase,
+     * an oracle quoting an 8 decimal price of that token in OHM, a budget capacity
+     * (specified as in OHM or in principal token terms), a timestamp when the
+     * bond concludes, and a vesting term or expiration timestamp dictated by
+     * _fixedTerm being true or false, respectively.
      * 
-     * Setting the terms on a bond initializes it. The control variable 
+     * The contract computes a BCV based on the amount of OHM to spend or principal
+     * to buy, and the intended time to do it in (time from initialization to conclusion).
+     * The bond is initialized with an amount of initial debt, which should start it
+     * at the oracle price. Debt will decay from there to open discounts.
      */
 
     /**
@@ -124,9 +130,9 @@ contract OlympusBondDepository {
       capacityInPrincipal: _inPrincipal
     });
     
-    id_ = IDs.length;
+    id_ = ids.length;
     bonds[id_] = bond;
-    IDs.push(address(_principal));
+    ids.push(address(_principal));
   }
 
   /**
@@ -160,28 +166,28 @@ contract OlympusBondDepository {
 
   /**
    * @notice deposit bond
-   * @param _amount uint
-   * @param _maxPrice uint
    * @param _depositor address
-   * @param _BID uint
+   * @param _bid uint256
+   * @param _amount uint256
+   * @param _maxPrice uint256
    * @param _feo address
    * @return payout_ uint256
    * @return index_ uint256
    */
   function deposit(
+    address _depositor,
+    uint256 _bid,
     uint256 _amount,
     uint256 _maxPrice,
-    address _depositor,
-    uint256 _BID,
     address _feo
   ) external returns (uint256 payout_, uint256 index_) {
     require(_depositor != address(0), "Invalid address");
-    require(_maxPrice >= bondPrice(_BID), "Slippage limit: more than max price"); // slippage protection
+    require(_maxPrice >= bondPrice(_bid), "Slippage limit: more than max price");
 
-    Bond storage info = bonds[_BID];
-    _beforeBond(info, _BID);
+    Bond storage info = bonds[_bid];
+    _beforeBond(info, _bid);
 
-    payout_ = payoutFor(_amount, _BID); // payout to bonder is computed
+    payout_ = payoutFor(_amount, _bid); // payout to bonder is computed
 
     uint256 cap = payout_;
     if (info.capacityInPrincipal) { // capacity is in principal terms
@@ -198,10 +204,10 @@ contract OlympusBondDepository {
       expiration += block.timestamp;
     }
 
-    emit CreateBond(_BID, payout_, expiration);
+    emit CreateBond(_bid, payout_, expiration);
 
     // user info stored with teller
-    index_ = teller.newBond(_depositor, _BID, payout_, expiration, _feo);
+    index_ = teller.newBond(_depositor, _bid, payout_, expiration, _feo);
 
     info.principal.safeTransferFrom(msg.sender, address(this), _amount);
     info.principal.safeTransfer(address(treasury), _amount); // send payout to treasury
@@ -209,58 +215,53 @@ contract OlympusBondDepository {
 
   /* ======== INTERNAL FUNCTIONS ======== */
 
-  /**
-   * @notice pre-bond checks and event
-   * @param _info Bond memory
-   * @param _bid uint256
-   */
+  // checks and event before bond
   function _beforeBond(Bond memory _info, uint256 _bid) internal {
     require(block.timestamp < _info.terms.conclusion, "Bond concluded");
 
-    emit BeforeBond(_bid, bondPriceInUSD(_bid), bondPrice(_bid), debtRatio(_bid));
-
     decayDebt(_bid);
+
+    emit BeforeBond(_bid, bondPriceInUSD(_bid), bondPrice(_bid), debtRatio(_bid));
 
     require(_info.totalDebt <= _info.terms.maxDebt, "Max debt exceeded");
   }
 
-  /**
-   * @notice reduce total debt
-   * @param _bid uint256
-   */
+  // reduce total debt based on time passed
   function decayDebt(uint256 _bid) internal {
-    bonds[_bid].totalDebt = bonds[_bid].totalDebt - debtDecay(_bid);
+    bonds[_bid].totalDebt -= debtDecay(_bid);
     bonds[_bid].last = block.timestamp;
   }
 
-  /**
-   * @notice ensure payout is within size range
-   * @param _payout uint256
-   */
+  // ensure payout is not too large or small
   function _payoutWithinBounds(uint256 _payout) internal view {
     require(_payout >= 10000000, "Bond too small"); // must be > 0.01 OHM ( underflow protection )
     require(_payout <= maxPayout(), "Bond too large"); // global max bond size
   }
 
   /**
-   * @notice compute target debt and BCV for Bond
-   * @return target_ uint256
+   * @notice compute target debt and BCV for bond
+   * @return targetDebt_ uint256
    * @return bcv_ uint256
    */
-  function _compute(uint256 _capacity, bool _inPrincipal, uint256 _conclusion, IOracle _oracle) internal view returns (uint256 target_, uint256 bcv_) {
+  function _compute(
+    uint256 _capacity, 
+    bool _inPrincipal, 
+    uint256 _conclusion, 
+    IOracle _oracle
+  ) internal view returns (uint256 targetDebt_, uint256 bcv_) {
     uint256 capacity = _capacity;
     if (_inPrincipal) {
       capacity = _capacity * _oracle.assetPrice() / 1e8;
     }
+
     uint256 programLength = _conclusion - block.timestamp;
-    target_ = capacity * global.decayRate / programLength;
-    uint256 discountedPrice = _oracle.assetPrice() * 99 / 100; // assume average discount of 1%
-    bcv_ = (discountedPrice * OHM.totalSupply() / 1e8) * 1e9 / target_;
+    targetDebt_ = capacity * global.decayRate / programLength;
+    uint256 discountedPrice = _oracle.assetPrice() * 98 / 100; // assume average discount of 2%
+    // (* 10) below comes from div by 1e8 (oracle) and mul by 1e9 (OHM)
+    bcv_ = discountedPrice * ohm.totalSupply() * 10 / targetDebt_;
   }
   
-  /**
-   * @notice ensure bond times are appropriate
-   */
+  // ensure bond times are appropriate
   function _checkLengths(uint256 _conclusion, uint256 _vesting, bool _fixedTerm) internal view {
     require(_conclusion > block.timestamp + 5e6, "Conclusion must be >6 days in future");
     if (!_fixedTerm) {
@@ -279,17 +280,17 @@ contract OlympusBondDepository {
    * @return uint256
    */
   function maxPayout() public view returns (uint256) {
-    return OHM.totalSupply() * global.maxPayout / 1e9;
+    return ohm.totalSupply() * global.maxPayout / 1e9;
   }
 
   /**
    * @notice payout due for amount of token
-   * @param _amount uint
-   * @param _bid uint
-   * @return uint
+   * @param _amount uint256
+   * @param _bid uint256
+   * @return uint256
    */
   function payoutFor(uint256 _amount, uint256 _bid) public view returns (uint256) {
-    uint inOhmDecimals = _amount * (10 ** OHM.decimals()) / (10 ** bonds[_bid].principal.decimals());
+    uint inOhmDecimals = _amount * (10 ** ohm.decimals()) / (10 ** bonds[_bid].principal.decimals());
     return inOhmDecimals * 1e9 / bondPrice(_bid);
   }
 
@@ -297,16 +298,16 @@ contract OlympusBondDepository {
 
   /**
    * @notice calculate current bond premium
-   * @param _bid uint
-   * @return price_ uint
+   * @param _bid uint256
+   * @return uint256
    */
-  function bondPrice(uint256 _bid) public view returns (uint256 price_) {
+  function bondPrice(uint256 _bid) public view returns (uint256) {
     return bonds[_bid].terms.controlVariable * debtRatio(_bid) / 1e9;
   }
 
   /**
    * @notice converts bond price to USD value
-   * @param _bid uint
+   * @param _bid uint256
    * @return uint256
    */
   function bondPriceInUSD(uint256 _bid) public view returns (uint256) {
@@ -317,17 +318,17 @@ contract OlympusBondDepository {
 
   /**
    * @notice calculate current ratio of debt to OHM supply
-   * @param _bid uint
+   * @param _bid uint256
    * @return uint256
    */
   function debtRatio(uint256 _bid) public view returns (uint256) {
-    return currentDebt(_bid) * 1e9 / OHM.totalSupply();
+    return currentDebt(_bid) * 1e9 / ohm.totalSupply();
   }
 
   /**
    * @notice calculate debt factoring in decay
-   * @param _bid uint
-   * @return uint
+   * @param _bid uint256
+   * @return uint256
    */
   function currentDebt(uint256 _bid) public view returns (uint256) {
     return bonds[_bid].totalDebt - debtDecay(_bid);
@@ -335,7 +336,7 @@ contract OlympusBondDepository {
 
   /**
    * @notice amount to decay total debt by
-   * @param _bid uint
+   * @param _bid uint256
    * @return decay_ uint256
    */
   function debtDecay(uint256 _bid) public view returns (uint256 decay_) {
