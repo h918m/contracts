@@ -14,16 +14,12 @@ import "./interfaces/ITeller.sol";
 import "./types/OlympusAccessControlled.sol";
 
 contract BondTeller is ITeller, OlympusAccessControlled {
+
     /* ========== DEPENDENCIES ========== */
 
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using SafeERC20 for IsOHM;
-
-    /* ========== EVENTS =========== */
-
-    event BondCreated(address indexed bonder, uint256 payout, uint256 expires);
-    event Redeemed(address indexed bonder, uint256 payout);
 
     /* ========== MODIFIERS ========== */
 
@@ -36,8 +32,7 @@ contract BondTeller is ITeller, OlympusAccessControlled {
 
     // Info for bond holder
     struct Bond {
-        address principal; // token used to pay for bond
-        uint256 principalPaid; // amount of principal token paid for bond
+        uint256 bondId; // ID of bond in depository
         uint256 payout; // sOHM remaining to be paid. agnostic balance
         uint256 vested; // Block when bond is vested
         uint256 created; // time bond was created
@@ -55,7 +50,7 @@ contract BondTeller is ITeller, OlympusAccessControlled {
     mapping(address => Bond[]) public bonderInfo; // user data
     mapping(address => uint256[]) public indexesFor; // user bond indexes
 
-    mapping(address => uint256) public FERs; // front end operator rewards
+    mapping(address => uint256) public rewards; // front end operator rewards
     uint256 public feReward;
 
     /* ========== CONSTRUCTOR ========== */
@@ -80,13 +75,12 @@ contract BondTeller is ITeller, OlympusAccessControlled {
         sOHM = IsOHM(_sOHM);
     }
 
-    /* ========== DEPOSITORY FUNCTIONS ========== */
+    /* ========== DEPOSITORY ========== */
 
     /**
      * @notice add new bond payout to user data
      * @param _bonder address
-     * @param _principal address
-     * @param _principalPaid uint256
+     * @param _bid uint256
      * @param _payout uint256
      * @param _expires uint256
      * @param _feo address
@@ -94,27 +88,24 @@ contract BondTeller is ITeller, OlympusAccessControlled {
      */
     function newBond(
         address _bonder,
-        address _principal,
-        uint256 _principalPaid,
+        uint256 _bid,
         uint256 _payout,
         uint256 _expires,
         address _feo
     ) external override onlyDepository returns (uint256 index_) {
-        uint256 reward = _payout.mul(feReward).div(10_000);
-        treasury.mint(address(this), _payout.add(reward));
+        uint256 reward = _payout * feReward / 1e5;
 
-        OHM.approve(address(staking), _payout);
+        treasury.mint(address(this), _payout.add(reward));
         staking.stake(address(this), _payout, true, true);
 
-        FERs[_feo] = FERs[_feo].add(reward); // front end operator reward
+        rewards[_feo] += reward; // front end operator reward
 
         index_ = bonderInfo[_bonder].length;
 
         // store bond & stake payout
         bonderInfo[_bonder].push(
             Bond({
-                principal: _principal,
-                principalPaid: _principalPaid,
+                bondId: _bid,
                 payout: sOHM.toG(_payout),
                 vested: _expires,
                 created: block.timestamp,
@@ -123,10 +114,10 @@ contract BondTeller is ITeller, OlympusAccessControlled {
         );
     }
 
-    /* ========== INTERACTABLE FUNCTIONS ========== */
+    /* ========== MUTABLE FUNCTIONS ========== */
 
     /**
-     *  @notice redeems all redeemable bonds
+     *  @notice redeems all redeemable bonds. beware of gas, indexes can be queried off-chain.
      *  @param _bonder address
      *  @return uint256
      */
@@ -136,35 +127,46 @@ contract BondTeller is ITeller, OlympusAccessControlled {
     }
 
     /**
-     *  @notice redeem bond for user
+     *  @notice redeem bonds for user
      *  @param _bonder address
      *  @param _indexes calldata uint256[]
      *  @return uint256
      */
     function redeem(address _bonder, uint256[] memory _indexes) public override returns (uint256) {
+        Bond[] storage info = bonderInfo[_bonder];
         uint256 dues;
         for (uint256 i = 0; i < _indexes.length; i++) {
-            Bond memory info = bonderInfo[_bonder][_indexes[i]];
-
-            if (pendingFor(_bonder, _indexes[i]) != 0) {
-                bonderInfo[_bonder][_indexes[i]].redeemed = block.timestamp; // mark as redeemed
-
-                dues = dues.add(info.payout);
+            uint256 index = _indexes[i];
+            if (vested(_bonder, index)) {
+                info[index].redeemed = block.timestamp; // mark as redeemed
+                dues += info[index].payout;
             }
         }
-
         dues = sOHM.fromG(dues);
-
-        emit Redeemed(_bonder, dues);
-        pay(_bonder, dues);
+        sOHM.safeTransfer(_bonder, dues);
         return dues;
     }
 
-    // pay reward to front end operator
+    /**
+     * @notice pay reward to front end operator
+     */
     function getReward() external override {
-        uint256 reward = FERs[msg.sender];
-        FERs[msg.sender] = 0;
-        OHM.safeTransfer(msg.sender, reward);
+        OHM.safeTransfer(msg.sender, rewards[msg.sender]);
+        rewards[msg.sender] = 0;
+    }
+
+    /**
+     *  @notice returns indexes of live bonds
+     *  @param _bonder address
+     */
+    function updateIndexesFor(address _bonder) public override {
+        delete indexesFor[_bonder];
+        Bond[] memory info = bonderInfo[_bonder];
+        for (uint256 i = 0; i < info.length; i++) {
+            if (info[i].redeemed == 0) {
+                indexesFor[_bonder].push(i);
+            }
+        }
     }
 
     /* ========== OWNABLE FUNCTIONS ========== */
@@ -174,31 +176,7 @@ contract BondTeller is ITeller, OlympusAccessControlled {
         feReward = reward;
     }
 
-    /* ========== INTERNAL FUNCTIONS ========== */
-
-    /**
-     *  @notice send payout
-     *  @param _amount uint256
-     */
-    function pay(address _bonder, uint256 _amount) internal {
-        sOHM.safeTransfer(_bonder, _amount);
-    }
-
     /* ========== VIEW FUNCTIONS ========== */
-
-    /**
-     *  @notice returns indexes of live bonds
-     *  @param _bonder address
-     */
-    function updateIndexesFor(address _bonder) public override {
-        Bond[] memory info = bonderInfo[_bonder];
-        delete indexesFor[_bonder];
-        for (uint256 i = 0; i < info.length; i++) {
-            if (info[i].redeemed == 0) {
-                indexesFor[_bonder].push(i);
-            }
-        }
-    }
 
     // PAYOUT
 
@@ -208,11 +186,11 @@ contract BondTeller is ITeller, OlympusAccessControlled {
      * @param _index uint256
      * @return uint256
      */
-    function pendingFor(address _bonder, uint256 _index) public view override returns (uint256) {
+    function vested(address _bonder, uint256 _index) public view override returns (bool) {
         if (bonderInfo[_bonder][_index].redeemed == 0 && bonderInfo[_bonder][_index].vested <= block.number) {
-            return bonderInfo[_bonder][_index].payout;
+            return true;
         }
-        return 0;
+        return false;
     }
 
     /**
@@ -223,7 +201,9 @@ contract BondTeller is ITeller, OlympusAccessControlled {
      */
     function pendingForIndexes(address _bonder, uint256[] memory _indexes) public view override returns (uint256 pending_) {
         for (uint256 i = 0; i < _indexes.length; i++) {
-            pending_ = pending_.add(pendingFor(_bonder, i));
+            if (vested(_bonder, _indexes[i])) {
+                pending_ += bonderInfo[_bonder][_indexes[i]].payout;
+            }
         }
         pending_ = sOHM.fromG(pending_);
     }
@@ -236,7 +216,9 @@ contract BondTeller is ITeller, OlympusAccessControlled {
     function totalPendingFor(address _bonder) public view override returns (uint256 pending_) {
         Bond[] memory info = bonderInfo[_bonder];
         for (uint256 i = 0; i < info.length; i++) {
-            pending_ = pending_.add(pendingFor(_bonder, i));
+            if (vested(_bonder, i)) {
+                pending_ += info[i].payout;
+            }
         }
         pending_ = sOHM.fromG(pending_);
     }
@@ -247,14 +229,14 @@ contract BondTeller is ITeller, OlympusAccessControlled {
      * @notice calculate how far into vesting a depositor is
      * @param _bonder address
      * @param _index uint256
-     * @return percentVested_ uint256
+     * @return uint256
      */
-    function percentVestedFor(address _bonder, uint256 _index) public view override returns (uint256 percentVested_) {
+    function percentVestedFor(address _bonder, uint256 _index) public view override returns (uint256) {
         Bond memory bond = bonderInfo[_bonder][_index];
 
-        uint256 timeSince = block.timestamp.sub(bond.created);
-        uint256 term = bond.vested.sub(bond.created);
+        uint256 timeSince = block.timestamp - bond.created;
+        uint256 term = bond.vested - bond.created;
 
-        percentVested_ = timeSince.mul(1e9).div(term);
+        return timeSince * 1e9 / term;
     }
 }
