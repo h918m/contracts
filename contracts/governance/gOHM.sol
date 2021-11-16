@@ -55,9 +55,11 @@ contract gOHM is IgOHM {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address _migrator) {
-        require(_migrator != address(0), "Zero address found");
+    constructor(address _migrator, address _v1Staking) {
+        require(_migrator != address(0), "Zero address: Migrator");
         approved = _migrator;
+        require(_v1Staking != address(0), "Zero address: Staking");
+        staking = IsOHM(_v1Staking); // for continuous index data
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -154,13 +156,16 @@ contract gOHM is IgOHM {
 
     /* ========== VIEW FUNCTIONS ========== */
 
+    function index() public view override returns (uint256) {
+        return sOHM.index();
+    }
     /**
         @notice converts gOHM amount to OHM
         @param _amount uint
         @return uint
      */
     function balanceFrom(uint256 _amount) public view override returns (uint256) {
-        return _amount.mul(IsOHM(sOHM).index()).div(10**decimals);
+        return _amount.mul(index()).div(10**decimals);
     }
 
     /**
@@ -169,7 +174,7 @@ contract gOHM is IgOHM {
         @return uint
      */
     function balanceTo(uint256 _amount) public view override returns (uint256) {
-        return _amount.mul(10**decimals).div(IsOHM(sOHM).index());
+        return _amount.mul(10**decimals).div(index());
     }
 
     /**
